@@ -2,6 +2,7 @@ from selenium import webdriver
 from bs4 import BeautifulSoup as soup
 from datetime import datetime
 from time import sleep
+import pandas as pd
 
 def get_bitcoin():
     d = webdriver.Chrome("D:\chromedriver.exe")
@@ -24,6 +25,7 @@ def get_bitcoin():
 
 
 list_bitcoin = []
+column_names = ["ouv","high","low","last","var","vol",'time']
 
 for i in range(3):
     bitcoin = get_bitcoin()
@@ -31,3 +33,5 @@ for i in range(3):
     print(bitcoin)
     sleep(60)
 print(list_bitcoin)
+df = pd.DataFrame(list_bitcoin,columns = column_names)
+df.to_csv()
