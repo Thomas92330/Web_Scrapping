@@ -100,7 +100,6 @@ def get_bitcoin():
         time_bitcoin = time.time()
         return  ouv,high,low,last,var,vol,time_bitcoin,value
     except ValueError:
-        print("fail")
         df = pd.read_csv("Data_csv_temp.csv")
         ouv = df["ouv"].iloc[-1]
         high = df["high"].iloc[-1]
