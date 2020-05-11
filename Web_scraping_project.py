@@ -96,7 +96,7 @@ def get_bitcoin():
         vol = float(elements[5].text)  
         
         element = driver.find_element_by_css_selector("#main-content > div > section.l-quotepage > header > div > div > div.c-faceplate__company > div.c-faceplate__info > div > div.c-faceplate__price.c-faceplate__price--inline > span.c-instrument.c-instrument--last")
-        value = float(element.text.replace(" ",""))
+        value = float(element.text.replace(" ","")) #There is a space in the number, removing it make it easier when we want to cast it as a float
         time_bitcoin = time.time()
         return  ouv,high,low,last,var,vol,time_bitcoin,value
     except ValueError:
@@ -110,7 +110,8 @@ def get_bitcoin():
         time_bitcoin = time.time()
         value = df["value"].iloc[-1]
         return  ouv,high,low,last,var,vol,time_bitcoin,value
-    
+
+#fonction bind to the button activating scrap
 def on_click_button_activating_scrap(event):
     global activate_scrap
     if activate_scrap:
@@ -123,6 +124,7 @@ def on_click_button_activating_scrap(event):
         thread_activate_scrap = Thread(target=scrap_thread)
         thread_activate_scrap.start()
 
+#this fonction allow us to end the thread by changing the value of the global variable activate_scrap
 def scrap_thread():
     global activate_scrap
     while True:
@@ -130,14 +132,19 @@ def scrap_thread():
             write_values_in_csv()
         else:
             break
-    
+
+#write new datas in a csv file and retrieve them via the get_bitcoin function
 def write_values_in_csv():
-    driver.refresh()
     temps = int(time.time())
     temps += 15
+    driver.refresh() #To get the "value" we have to refresh the page 
+    time.sleep(5) #let time for the driver to refresh
+    ouv,high,low,last,var,vol,time_bitcoin,value = get_bitcoin()
+    
+    #Put a 15secondes timer (taking into acount the time for the request and refresh) betweeen each new request
     while(int(time.time()) != temps):
         pass
-    ouv,high,low,last,var,vol,time_bitcoin,value = get_bitcoin()
+ 
     data = {'row' : [ouv, high, low, last ,var, vol, time_bitcoin, value]}
     data_to_load = pd.DataFrame.from_dict(data,orient="index")
     
@@ -145,7 +152,7 @@ def write_values_in_csv():
     with open(filename,'a') as df:
         data_to_load.to_csv(df,header=False)
     
-    
+#fonction bind to the button updating legend  
 def on_click_button_updating_legend(event):
     global update_legend
     if update_legend:
@@ -158,7 +165,7 @@ def on_click_button_updating_legend(event):
         thread_updating_legend = Thread(target=refresh_legend)
         thread_updating_legend.start()
 
-
+#refresh the legend by retrieving the last row from the data_csv_temp.csv file
 def refresh_legend():
     global update_legend    
     if not update_legend:
@@ -168,7 +175,8 @@ def refresh_legend():
     label_for_legend.configure(text = str_to_load)
     
     app.after(ms=10000,func=refresh_legend)
-    
+
+#fonction bind to the button predict  
 def on_click_button_predict(event):
     global update_prediction
     if update_prediction:
@@ -181,6 +189,7 @@ def on_click_button_predict(event):
         thread_predict = Thread(target=refresh_prediction)
         thread_predict.start()
         
+#launch a new prediction from the predictor function and change the text accordingly
 def refresh_prediction():
     global update_prediction   
     if not update_prediction:
@@ -198,6 +207,10 @@ def refresh_prediction():
         
     app.after(ms=10000,func=refresh_prediction)
     
+#Use the data_csv file to train
+#make a prediction from the data_csv_temp file
+#use the SVR fonction from sklearn library
+#return accuracy on the training set (Data_csv) and prediction on the ongoing dataset (Data_csv_temp)
 def predictor():
     big_df= pd.read_csv("Data_csv.csv", error_bad_lines=False)
     current_df = pd.read_csv("Data_csv_temp.csv", error_bad_lines=False)
@@ -229,6 +242,7 @@ def predictor():
 
     return svr_rbf_confidence, svm_prediction
 
+#fonction bind to the button saving
 def on_click_button_saving_csv(event):
     data_to_load = pd.read_csv("Data_csv_temp.csv")
     filename = "Data_csv.csv"
@@ -236,6 +250,8 @@ def on_click_button_saving_csv(event):
         data_to_load.to_csv(df,header=False)
     init_data_csv_temp()
 
+#fonction bind to the button quit
+#close everything befor destroying the app
 def on_click_button_quit(event):
     driver.quit()
     
@@ -249,6 +265,7 @@ def on_click_button_quit(event):
 
     app.destroy()
     
+#update the graph with the last row from data_csv_temp
 def update_graph(dt):
     df = pd.read_csv("Data_csv_temp.csv")
     x=[i for i in range(len(df['ouv']))]
@@ -271,6 +288,7 @@ def update_graph(dt):
 init_csv_files()
 init_data_csv_temp()
 
+#Initialisation of the different elements of our app
 frame_top_left = tk.Frame(app)
 
 button_activating_scrap = tk.Button(frame_top_left , text="Activate scrap") 
@@ -293,7 +311,6 @@ label_for_legend = tk.Label(app, text=" ")
 label_for_legend.grid(column=1, row=1)
 init_legend()
 
-
 label_for_prediction = tk.Label(app, text=" ")
 label_for_prediction.grid(column=1, row=2)
 
@@ -311,6 +328,7 @@ ax1.set_ylabel('Euros', color='b')
 ax2.set_ylabel('%', color='r')
 ani = FuncAnimation(fig, update_graph, interval=8000)
 
+#Initialisation of our bindings
 button_quit.bind("<ButtonRelease-1>", on_click_button_quit)
 button_activating_scrap.bind("<ButtonRelease-1>", on_click_button_activating_scrap)
 button_saving_csv.bind("<ButtonRelease-1>", on_click_button_saving_csv)
