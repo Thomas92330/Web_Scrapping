@@ -3,7 +3,6 @@ import time
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.animation import FuncAnimation
-from bs4 import BeautifulSoup as soup
 from selenium import webdriver
 from matplotlib import style
 import pandas as pd
@@ -13,12 +12,15 @@ from sklearn.svm import SVR
 import numpy as np 
 from sklearn.model_selection import train_test_split
 
+#Initialisation of the window
 app = tk.Tk()
 
+#Initialisation of global variable used in threads
 update_prediction = False
 update_legend = False
 activate_scrap = False
 
+#configuration of a grid setting
 app.columnconfigure(0, weight=1)
 app.columnconfigure(1, weight=1)
 
@@ -26,30 +28,35 @@ app.rowconfigure(0, weight=1)
 app.rowconfigure(1, weight=3)
 app.rowconfigure(2, weight=1)
 
-
+#Initialisation of the driver
 driver = webdriver.Chrome("D:\chromedriver.exe")
 driver.get('https://www.boursorama.com/bourse/devises/taux-de-change-bitcoin-euro-BTC-EUR/')
-soupy = soup(driver.page_source, 'html.parser')
 
+#Check if the necessary .csv files are existing and create them if not
 def init_csv_files():
     try:
+        #We try to read the file Data_csv_temp.csv
         with open('Data_csv_temp.csv','r') as csvfile:
             test = csvfile.read()
     except IOError:
+        #We create the file  Data_csv_temp.csv
         with open('Data_csv_temp.csv','w',newline='') as csvfile:
             column_names = ['row',"ouv","high","low","last","var","vol",'time','value']
             writer = csv.DictWriter(csvfile,fieldnames = column_names)
             writer.writeheader()
     
     try:
+        #We try to read the file Data_csv.csv
         with open('Data_csv.csv','r') as csvfile:
             test = csvfile.read()
     except IOError:
+        #We create the file  Data_csv_temp.csv
         with open('Data_csv.csv','w',newline='') as csvfile:
             column_names = ['row',"ouv","high","low","last","var","vol",'time','value']
             writer = csv.DictWriter(csvfile,fieldnames = column_names)
             writer.writeheader()
-    
+
+#Overwright the current Data_csv_temp.csv file with a single new row    
 def init_data_csv_temp():
     ouv,high,low,last,var,vol,time_bitcoin,value = get_bitcoin()
     data = {'row' : 'row',
@@ -67,28 +74,44 @@ def init_data_csv_temp():
         writer = csv.DictWriter(csvfile,fieldnames = column_names)
         writer.writeheader()
         writer.writerow(data)
-    time.sleep(2)
+    time.sleep(1)
 
+#Set the legend label with the last row of Data_temp_csv.csv
 def init_legend():
     df = pd.read_csv("Data_csv_temp.csv")
     str_to_load = "Ouv: " + str(df.iloc[-1]["ouv"]) + "\n High: " + str(df.iloc[-1]["high"]) + "\n Low: " + str(df.iloc[-1]["low"]) + "\n Last: " + str(df.iloc[-1]["last"]) + "\n Var: " + str(df.iloc[-1]["var"]) + "\n Value: " + str(df.iloc[-1]["value"])
     label_for_legend.configure(text = str_to_load)
       
-
+#scrap the website and retrieve the necessary datas
 def get_bitcoin():
-    element = soupy.find_all("span", {"class":"c-quote-chart-info-area__value"})
-    ouv = float(element[0].getText()) 
-    high = float(element[1].getText())  
-    low = float(element[2].getText())  
-    last = float(element[3].getText())  
-    var = float(element[4].getText().strip('%'))
-    vol = float(element[5].getText())  
+    #Sometime the request will fail and retrieve an empty element
+    #If it does, we by pass the error by retrieving the previous datas
+    try:
+        elements = driver.find_elements_by_class_name("c-quote-chart-info-area__value")
+        ouv = float(elements[0].text) 
+        high = float(elements[1].text)  
+        low = float(elements[2].text)  
+        last = float(elements[3].text)  
+        var = float(elements[4].text.strip('%'))
+        vol = float(elements[5].text)  
+        
+        element = driver.find_element_by_css_selector("#main-content > div > section.l-quotepage > header > div > div > div.c-faceplate__company > div.c-faceplate__info > div > div.c-faceplate__price.c-faceplate__price--inline > span.c-instrument.c-instrument--last")
+        value = float(element.text.replace(" ",""))
+        time_bitcoin = time.time()
+        return  ouv,high,low,last,var,vol,time_bitcoin,value
+    except ValueError:
+        print("fail")
+        df = pd.read_csv("Data_csv_temp.csv")
+        ouv = df["ouv"].iloc[-1]
+        high = df["high"].iloc[-1]
+        low = df["low"].iloc[-1] 
+        last = df["last"].iloc[-1]
+        var = df["var"].iloc[-1]
+        vol = df["vol"].iloc[-1] 
+        time_bitcoin = time.time()
+        value = df["value"].iloc[-1]
+        return  ouv,high,low,last,var,vol,time_bitcoin,value
     
-    element = soupy.find("span", {"class":"c-instrument c-instrument--last"})
-    value = float(element.getText().replace(" ",""))
-    time_bitcoin = time.time()
-    return ouv,high,low,last,var,vol,time_bitcoin,value
-
 def on_click_button_activating_scrap(event):
     global activate_scrap
     if activate_scrap:
@@ -100,25 +123,22 @@ def on_click_button_activating_scrap(event):
         global thread_activate_scrap
         thread_activate_scrap = Thread(target=scrap_thread)
         thread_activate_scrap.start()
-    print("quelqu'un a cliqué activating_scrap", event.x, event.y)
 
 def scrap_thread():
     global activate_scrap
-    print("je lance mon threadde scraping")
     while True:
         if activate_scrap:
             write_values_in_csv()
         else:
             break
-    print("j'ai fini mon thread")
     
 def write_values_in_csv():
-    print("I am scraping")
+    driver.refresh()
     temps = int(time.time())
-    temps += 10
-    ouv,high,low,last,var,vol,time_bitcoin, value = get_bitcoin()
+    temps += 15
     while(int(time.time()) != temps):
         pass
+    ouv,high,low,last,var,vol,time_bitcoin,value = get_bitcoin()
     data = {'row' : [ouv, high, low, last ,var, vol, time_bitcoin, value]}
     data_to_load = pd.DataFrame.from_dict(data,orient="index")
     
@@ -139,14 +159,11 @@ def on_click_button_updating_legend(event):
         thread_updating_legend = Thread(target=refresh_legend)
         thread_updating_legend.start()
 
-    print("quelqu'un a cliqué update", event.x, event.y)
 
 def refresh_legend():
     global update_legend    
     if not update_legend:
-        print("je m'arrete")
         return
-    print("I'm refresh")
     df = pd.read_csv("Data_csv_temp.csv")
     str_to_load = "Ouv: " + str(df.iloc[-1]["ouv"]) + "\n High: " + str(df.iloc[-1]["high"]) + "\n Low: " + str(df.iloc[-1]["low"]) + "\n Last: " + str(df.iloc[-1]["last"]) + "\n Var: " + str(df.iloc[-1]["var"]) + "\n Value: " + str(df.iloc[-1]["value"])
     label_for_legend.configure(text = str_to_load)
@@ -165,14 +182,10 @@ def on_click_button_predict(event):
         thread_predict = Thread(target=refresh_prediction)
         thread_predict.start()
         
-    print("quelqu'un a cliqué predict", event.x, event.y)
-
 def refresh_prediction():
     global update_prediction   
     if not update_prediction:
-        print("je m'arrete dans mes predictions")
         return
-    print("prediction refresh \n")
     df = pd.read_csv("Data_csv_temp.csv")
     accuracy , prediction = predictor()
     str_to_load = "Accuracy: " + str(accuracy) + "\nPrediction: " + str(prediction)
@@ -222,21 +235,22 @@ def on_click_button_saving_csv(event):
     filename = "Data_csv.csv"
     with open(filename,'a') as df:
         data_to_load.to_csv(df,header=False)
-    print("saved")
     init_data_csv_temp()
-    print("quelqu'un a cliqué saving", event.x, event.y)
 
 def on_click_button_quit(event):
     driver.quit()
     
-    for t in (Thread(target=refresh_prediction),Thread(target=scrap_thread),Thread(target=refresh_legend) ):
-        t.daemon = True  # This thread dies when main thread (only non-daemon thread) exits.
-        t.start()
+    global update_prediction 
+    global update_legend 
+    global activate_scrap 
     
+    update_prediction = False
+    update_legend = False
+    activate_scrap = False
+
     app.destroy()
     
 def update_graph(dt):
-    print("Animation")
     df = pd.read_csv("Data_csv_temp.csv")
     x=[i for i in range(len(df['ouv']))]
     ax1.clear()
@@ -287,9 +301,9 @@ label_for_prediction.grid(column=1, row=2)
 
 fig = Figure(figsize=(4,2), dpi=100)
 canvas = FigureCanvasTkAgg(fig,app)
-canvas.get_tk_widget().grid(column=0, row=1)  # recupere le widget tkinter de la figure canva.tk.get...
+canvas.get_tk_widget().grid(column=0, row=1)  
 
-#Initialisation du Graphe
+#Initialisation of our graph
 style.use("ggplot")
 ax1 = fig.add_subplot(211)
 ax2 = fig.add_subplot(212, sharex=ax1)
